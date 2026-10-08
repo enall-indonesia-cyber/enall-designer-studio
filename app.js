@@ -164,17 +164,3 @@ processBtn.addEventListener('click', async () => {
         };
         resultImg.src = base64Clean.startsWith('data:') ? base64Clean : `data:image/jpeg;base64,${base64Clean}`;
 
-    } catch (error) {
-        console.error(error);
-        statusText.innerText = "❌ Gagal memproses gambar. Periksa konsol / API Key Anda.";
-        processBtn.disabled = false;
-    }
-});
-
-// 3. Menangani Fitur Unduh Foto
-downloadBtn.addEventListener('click', () => {
-    const link = document.createElement('a');
-    link.download = 'ai-edited-photo.jpg';
-    link.href = canvas.toDataURL('image/jpeg');
-    link.click();
-});
