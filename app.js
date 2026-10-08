@@ -1,3 +1,4 @@
+// Ambil semua elemen HTML berdasarkan ID masing-masing
 const uploadInput = document.getElementById('uploadInput');
 const canvas = document.getElementById('photoCanvas');
 const ctx = canvas.getContext('2d');
@@ -9,57 +10,57 @@ const statusText = document.getElementById('statusText');
 
 let originalImage = null;
 
-// 1. Menangani Upload Gambar ke Canvas
+// 1. Logika Mengunggah Foto ke Canvas HTML5
 uploadInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    statusText.innerText = "⏳ Memuat gambar...";
+    
     const reader = new FileReader();
     reader.onload = (event) => {
         originalImage = new Image();
-        
-        // PENTING: Menghindari error CORS / "Tainted Canvas" di hosting Netlify
         originalImage.crossOrigin = "anonymous"; 
         
         originalImage.onload = () => {
-            // Sesuaikan ukuran canvas dengan gambar asli
             canvas.width = originalImage.width;
             canvas.height = originalImage.height;
-            
-            // Gambar ke canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(originalImage, 0, 0);
             
-            // Tampilkan Canvas, sembunyikan placeholder
             canvas.classList.remove('hidden');
             placeholderText.classList.add('hidden');
+            
             processBtn.disabled = false;
+            statusText.innerText = "✅ Gambar berhasil dimuat. Silakan masukkan instruksi AI!";
         };
         originalImage.src = event.target.result;
     };
     reader.readAsDataURL(file);
 });
 
-// Helper: Mengubah data URL Canvas menjadi format Base64 bersih untuk Gemini API
+// Fungsi pembantu: Mengambil string Base64 dari gambar di canvas
 function getBase64FromCanvas() {
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    return dataUrl.split(',')[1];
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    return dataUrl.split(',')[1]; // Mengambil string base64 murni setelah tanda koma
 }
 
-// 2. Menangani Request ke API Gemini
+// 2. Logika Utama Mengirim Foto ke API Gemini via Header Keamanan (Mendukung Kunci AQ)
 processBtn.addEventListener('click', async () => {
     const promptValue = aiPrompt.value.trim();
     if (!promptValue) {
-        statusText.innerText = "⚠️ Tolong masukkan instruksi prompt terlebih dahulu!";
+        statusText.innerHTML = "⚠️ <span class='text-amber-400'>Tolong masukkan instruksi prompt terlebih dahulu!</span>";
         return;
     }
 
     statusText.innerText = "⏳ Menghubungkan ke Gemini AI... Mohon tunggu...";
     processBtn.disabled = true;
+    downloadBtn.disabled = true;
 
-        try {
+    try {
         const base64ImageStr = getBase64FromCanvas();
         
-        // Membaca variabel rahasia dari Netlify secara aman
+        // Membaca variabel GEMINI_API_KEY dari sistem Environment Variables Netlify
         const apiKey = window.process?.env?.GEMINI_API_KEY || ""; 
 
         const url = `https://googleapis.com`;
@@ -86,7 +87,7 @@ processBtn.addEventListener('click', async () => {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey 
+                'x-goog-api-key': apiKey // Mengirimkan kunci AQ Anda lewat header resmi Google
             },
             body: JSON.stringify(payload)
         });
@@ -97,11 +98,11 @@ processBtn.addEventListener('click', async () => {
 
         const resData = await response.json();
         
-        if (!resData.candidates || !resData.candidates.content.parts.text) {
+        if (!resData.candidates || !resData.candidates[0]?.content?.parts?.[0]?.text) {
             throw new Error("Respons dari AI kosong.");
         }
 
-        const rawAiText = resData.candidates.content.parts.text.trim();
+        const rawAiText = resData.candidates[0].content.parts[0].text.trim();
         let cleanBase64 = rawAiText.replace(/```[a-zA-Z]*/g, "").replace(/```/g, "").trim();
         cleanBase64 = cleanBase64.replace(/\s/g, '');
 
@@ -124,7 +125,7 @@ processBtn.addEventListener('click', async () => {
         };
         
         resultImg.onerror = () => {
-            statusText.innerHTML = "❌ <span class='text-amber-400'>AI gagal menghasilkan gambar yang benar.</span>";
+            statusText.innerHTML = "❌ <span class='text-amber-400'>AI gagal menghasilkan format gambar yang benar. Coba ubah prompt Anda.</span>";
             processBtn.disabled = false;
         };
 
@@ -132,35 +133,19 @@ processBtn.addEventListener('click', async () => {
 
     } catch (error) {
         console.error("Detail Error:", error);
-        statusText.innerHTML = "❌ <span class='text-red-400'>Gagal memproses gambar. Periksa konfigurasi API Key di Netlify.</span>";
+        statusText.innerHTML = "❌ <span class='text-red-400'>Gagal memproses gambar. Periksa konfigurasi API Key di Netlify Anda.</span>";
         processBtn.disabled = false;
     }
 });
 
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-        
-        // Membaca teks hasil respons dari Gemini
-        const aiResponseText = data.candidates[0].content.parts[0].text.trim();
-        
-        // Ekstrak string Base64 dari text response (jika dibungkus markdown)
-        const base64Clean = aiResponseText.replace(/```.*/g, "").trim();
-
-        // Render kembali hasil modifikasi AI ke Canvas
-        const resultImg = new Image();
-        resultImg.crossOrigin = "anonymous";
-        resultImg.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(resultImg, 0, 0);
-            statusText.innerText = "✅ Foto berhasil diedit oleh AI!";
-            downloadBtn.disabled = false;
-            processBtn.disabled = false;
-        };
-        resultImg.src = base64Clean.startsWith('data:') ? base64Clean : `data:image/jpeg;base64,${base64Clean}`;
-
+// 3. Logika Mengunduh File Hasil Edit Foto
+downloadBtn.addEventListener('click', () => {
+    statusText.innerText = "📥 Mengunduh gambar...";
+    const downloadLink = document.createElement('a');
+    downloadLink.download = `ai-photo-edit-${Date.now()}.jpg`;
+    downloadLink.href = canvas.toDataURL('image/jpeg', 0.9);
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    statusText.innerHTML = "💾 <span class='text-emerald-400'>Gambar berhasil disimpan!</span>";
+});
