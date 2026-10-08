@@ -56,30 +56,87 @@ processBtn.addEventListener('click', async () => {
     statusText.innerText = "⏳ Menghubungkan ke Gemini AI... Mohon tunggu...";
     processBtn.disabled = true;
 
-    try {
-        const base64Image = getBase64FromCanvas();
+        try {
+        const base64ImageStr = getBase64FromCanvas();
+        
+        // Membaca variabel rahasia dari Netlify secara aman
+        const apiKey = window.process?.env?.GEMINI_API_KEY || ""; 
 
-        // Mengambil API Key dari Environment Variable Netlify (Dikonfigurasi di dasbor Netlify)
-        // Catatan: Jika menggunakan Vanilla JS mentah di client-side, disarankan menggunakan backend function/proxy, 
-        // namun untuk keperluan demo statis sederhana di Netlify, pastikan key disimpan dengan aman.
-        const apiKey = window.process?.env?.GEMINI_API_KEY || "MASUKKAN_KEY_DI_DASHBOARD_NETLIFY";
+        const url = `https://googleapis.com`;
 
-        // Endpoint resmi Gemini 1.5 Flash untuk pemrosesan multimodal (Teks + Gambar)
-        const url = `https://googleapis.com{apiKey}`;
+        const systemInstruction = `Ubah gambar ini berdasarkan instruksi user: "\${promptValue}". KETENTUAN WAJIB: Keluarkan HANYA string teks base64 dari gambar hasil edit tanpa penjelasan, tanpa format markdown seperti \`\`\`, dan tanpa kata-kata tambahan apapun. Cukup string base64 gambar jpeg murni.`;
 
         const payload = {
             contents: [{
                 parts: [
-                    { text: `Tugas Anda adalah memodifikasi gambar ini berdasarkan instruksi berikut: "${promptValue}". Kembalikan hanya gambar hasil edit dalam bentuk format data URL base64 jpeg murni yang siap ditampilkan ke elemen image, tanpa teks tambahan apapun.` },
+                    { text: systemInstruction },
                     {
                         inlineData: {
                             mimeType: "image/jpeg",
-                            data: base64Image
+                            data: base64ImageStr
                         }
                     }
                 ]
             }]
         };
+
+        statusText.innerText = "🤖 Gemini AI sedang mengedit foto Anda...";
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey 
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP Error! Status: ${response.status}`);
+        }
+
+        const resData = await response.json();
+        
+        if (!resData.candidates || !resData.candidates.content.parts.text) {
+            throw new Error("Respons dari AI kosong.");
+        }
+
+        const rawAiText = resData.candidates.content.parts.text.trim();
+        let cleanBase64 = rawAiText.replace(/```[a-zA-Z]*/g, "").replace(/```/g, "").trim();
+        cleanBase64 = cleanBase64.replace(/\s/g, '');
+
+        if (!cleanBase64.startsWith('data:')) {
+            cleanBase64 = `data:image/jpeg;base64,${cleanBase64}`;
+        }
+
+        statusText.innerText = "🎨 Menggambar ulang hasil edit AI...";
+
+        const resultImg = new Image();
+        resultImg.crossOrigin = "anonymous";
+        resultImg.onload = () => {
+            canvas.width = resultImg.width;
+            canvas.height = resultImg.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(resultImg, 0, 0);
+            statusText.innerHTML = "✨ <span class='text-emerald-400 font-bold'>Foto sukses dimodifikasi oleh AI!</span>";
+            downloadBtn.disabled = false;
+            processBtn.disabled = false;
+        };
+        
+        resultImg.onerror = () => {
+            statusText.innerHTML = "❌ <span class='text-amber-400'>AI gagal menghasilkan gambar yang benar.</span>";
+            processBtn.disabled = false;
+        };
+
+        resultImg.src = cleanBase64;
+
+    } catch (error) {
+        console.error("Detail Error:", error);
+        statusText.innerHTML = "❌ <span class='text-red-400'>Gagal memproses gambar. Periksa konfigurasi API Key di Netlify.</span>";
+        processBtn.disabled = false;
+    }
+});
+
 
         const response = await fetch(url, {
             method: 'POST',
