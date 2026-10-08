@@ -1,17 +1,4 @@
-# 1. Mengatur Pengalihan Halaman (Redirects)
-# Menjamin halaman utama selalu dimuat dengan benar tanpa error 404 saat diakses ulang
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# 2. Mengatur Kebijakan Keamanan Header Browser
-# Membuka gerbang agar website Anda di Netlify diizinkan bertukar data gambar dengan Google Gemini API
-[[headers]]
-  for = "/*"
-    [headers.values]
-      Access-Control-Allow-Origin = "*"
-      Access-Control-Allow-Headers = "Content-Type, Authorization"
-      Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-      # Mengizinkan pemuatan skrip eksternal (Tailwind via CDN) dan koneksi data ke Google API secara aman
-      Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://jsdelivr.net; connect-src 'self' https://googleapis.com; img-src 'self' data: blob: *;"
