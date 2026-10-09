@@ -58,39 +58,35 @@ processBtn.addEventListener('click', async () => {
     downloadBtn.disabled = true;
 
     try {
+       
         const base64ImageStr = getBase64FromCanvas();
+              
+
+      const systemInstruction = `Ubah gambar ini berdasarkan instruksi...`;
+
+      const payload = {
+        contents: [{
+          parts: [
+            { text: systemInstruction },
+            {
+              inlineData: {
+                mimeType: "image/jpeg",
+                data: base64ImageStr
+              }
+            }
+          ]
+        }]
+      };
+
+      statusText.innerText = "🤖 Gemini AI sedang memproses foto...";
+
+      const response = await fetch('/api/gemini', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
         
-        // Membaca variabel GEMINI_API_KEY dari sistem Environment Variables Netlify
-        const apiKey = window.process?.env?.GEMINI_API_KEY || ""; 
-
-        const url = `https://googleapis.com`;
-
-        const systemInstruction = `Ubah gambar ini berdasarkan instruksi user: "\${promptValue}". KETENTUAN WAJIB: Keluarkan HANYA string teks base64 dari gambar hasil edit tanpa penjelasan, tanpa format markdown seperti \`\`\`, dan tanpa kata-kata tambahan apapun. Cukup string base64 gambar jpeg murni.`;
-
-        const payload = {
-            contents: [{
-                parts: [
-                    { text: systemInstruction },
-                    {
-                        inlineData: {
-                            mimeType: "image/jpeg",
-                            data: base64ImageStr
-                        }
-                    }
-                ]
-            }]
-        };
-
-        statusText.innerText = "🤖 Gemini AI sedang mengedit foto Anda...";
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey // Mengirimkan kunci AQ Anda lewat header resmi Google
-            },
-            body: JSON.stringify(payload)
-        });
 
         if (!response.ok) {
             throw new Error(`HTTP Error! Status: ${response.status}`);
