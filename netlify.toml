@@ -1,3 +1,7 @@
+[[edge_functions]]
+  path = "/api/gemini"
+  function = "gemini"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
